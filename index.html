@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <!-- PWA Icons & App Meta -->
+    <!-- PWA Icons & App Meta (URLs provisionales ligeras) -->
     <link rel="apple-touch-icon" sizes="192x192" href="https://cdn-icons-png.flaticon.com/128/1183/1183672.png">
     <link rel="apple-touch-icon" sizes="512x512" href="https://cdn-icons-png.flaticon.com/128/1183/1183672.png">
     <link rel="icon" type="image/png" sizes="192x192" href="https://cdn-icons-png.flaticon.com/128/1183/1183672.png">
@@ -299,14 +299,14 @@
 
         const App = () => {
             // 👇 PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE (EL "CHIP DE INTERNET") 👇
+            // Mete tus datos reales SOLAMENTE DENTRO DE LAS COMILLAS ("")
             const myFirebaseConfig = {
-                // EJEMPLO: (borra las dos barras diagonales '//' de la izquierda y pega tus datos reales)
-                // apiKey: "AIzaSy_tullaveaqui...",
-                // authDomain: "livo-hub-tuproyecto.firebaseapp.com",
-                // projectId: "livo-hub-tuproyecto",
-                // storageBucket: "livo-hub-tuproyecto.appspot.com",
-                // messagingSenderId: "123456789",
-                // appId: "1:123456789:web:abcdefghij"
+                apiKey: "",
+                authDomain: "",
+                projectId: "",
+                storageBucket: "",
+                messagingSenderId: "",
+                appId: ""
             };
             // 👆 HASTA AQUÍ LA CONFIGURACIÓN 👆
 
@@ -359,12 +359,14 @@
 
                 try {
                     const fb = window.FirebaseAPI;
-                    const hasManualConfig = Object.keys(myFirebaseConfig).length > 0;
+                    
+                    // Verificamos si myFirebaseConfig tiene datos reales o está vacío
+                    const hasManualConfig = myFirebaseConfig.apiKey !== "";
                     const envConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
                     const configToUse = hasManualConfig ? myFirebaseConfig : envConfig;
 
-                    if (Object.keys(configToUse).length === 0) {
-                        throw new Error("No config found");
+                    if (Object.keys(configToUse).length === 0 || !configToUse.apiKey) {
+                        throw new Error("No hay llaves de configuración válidas. Pegaste tus llaves?");
                     }
 
                     const firebaseApp = fb.initializeApp(configToUse);
@@ -390,7 +392,7 @@
                     });
                     return () => unsubscribe();
                 } catch (error) {
-                    console.log("Modo local activo (sin conexión a nube o faltan llaves).");
+                    console.error("Motivo del foquito gris (Modo Local activado):", error);
                 }
             }, [firebaseLoaded]);
 
