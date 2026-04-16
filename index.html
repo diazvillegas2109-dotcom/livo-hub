@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <!-- PWA Icons & App Meta (URLs provisionales ligeras) -->
+    <!-- PWA Icons & App Meta -->
     <link rel="apple-touch-icon" sizes="192x192" href="https://cdn-icons-png.flaticon.com/128/1183/1183672.png">
     <link rel="apple-touch-icon" sizes="512x512" href="https://cdn-icons-png.flaticon.com/128/1183/1183672.png">
     <link rel="icon" type="image/png" sizes="192x192" href="https://cdn-icons-png.flaticon.com/128/1183/1183672.png">
@@ -249,25 +249,42 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        // Importaciones de Firebase para habilitar sincronización en la Nube
+    <!-- Script modular aislado para cargar Firebase SIN que el motor visual (Babel) colapse -->
+    <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const { useState, useEffect } = React;
+        window.FirebaseAPI = {
+            initializeApp, getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken,
+            getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc
+        };
+    </script>
 
+    <!-- Motor visual de React -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Íconos blindados con un 'span' para que React no pelee con Lucide (evita que la pantalla se congele)
         const Icon = ({ name, size = 24, className = "", strokeWidth = 2, color = "currentColor" }) => {
+            const elRef = useRef(null);
+            
             useEffect(() => {
-                if (window.lucide) lucide.createIcons();
-            }, [name]);
-            return (
-                <i 
-                    data-lucide={name} 
-                    className={className} 
-                    style={{ width: size, height: size, strokeWidth: strokeWidth, color: color }}
-                ></i>
-            );
+                if (elRef.current && window.lucide) {
+                    elRef.current.innerHTML = `<i data-lucide="${name}" class="${className}"></i>`;
+                    window.lucide.createIcons({
+                        root: elRef.current,
+                        attrs: {
+                            width: size,
+                            height: size,
+                            "stroke-width": strokeWidth,
+                            stroke: color
+                        }
+                    });
+                }
+            }, [name, size, className, strokeWidth, color]);
+
+            return <span ref={elRef} className="contents"></span>;
         };
 
         const LivoLogo = ({ className = "h-48" }) => (
@@ -281,6 +298,18 @@
         );
 
         const App = () => {
+            // 👇 PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE (EL "CHIP DE INTERNET") 👇
+            const myFirebaseConfig = {
+                // EJEMPLO: (borra las dos barras diagonales '//' de la izquierda y pega tus datos reales)
+                // apiKey: "AIzaSy_tullaveaqui...",
+                // authDomain: "livo-hub-tuproyecto.firebaseapp.com",
+                // projectId: "livo-hub-tuproyecto",
+                // storageBucket: "livo-hub-tuproyecto.appspot.com",
+                // messagingSenderId: "123456789",
+                // appId: "1:123456789:web:abcdefghij"
+            };
+            // 👆 HASTA AQUÍ LA CONFIGURACIÓN 👆
+
             const colors = {
                 neon: '#00ead0',
                 primaryPB: '#49d5ba',
@@ -288,7 +317,8 @@
                 card: '#d9d9d9'
             };
 
-            // Estados de Configuración Firebase
+            // Estados de Configuración de la Nube
+            const [firebaseLoaded, setFirebaseLoaded] = useState(false);
             const [user, setUser] = useState(null);
             const [db, setDb] = useState(null);
             const [appId, setAppId] = useState('livo-hub-default');
@@ -296,7 +326,6 @@
             const [currentView, setCurrentView] = useState('home');
 
             // --- ESTADOS IDEA HUB ---
-            // Iniciamos con localStorage por si acaso se abre sin internet la primera vez
             const [canales, setCanales] = useState(() => JSON.parse(localStorage.getItem('livo_canales')) || []);
             const [ideasGenerales, setIdeasGenerales] = useState(() => JSON.parse(localStorage.getItem('livo_ideas')) || []);
             
@@ -313,13 +342,34 @@
             const [editItem, setEditItem] = useState(null);
             const [notaActiva, setNotaActiva] = useState({ id: null, titulo: '', contenido: '' });
 
-            // 1. Inicialización de Autenticación Segura y Firebase
+            // 1. Escuchar hasta que Firebase esté listo en el navegador
             useEffect(() => {
+                const checkTimer = setInterval(() => {
+                    if (window.FirebaseAPI) {
+                        clearInterval(checkTimer);
+                        setFirebaseLoaded(true);
+                    }
+                }, 50);
+                return () => clearInterval(checkTimer);
+            }, []);
+
+            // 2. Inicialización de Autenticación Segura
+            useEffect(() => {
+                if (!firebaseLoaded) return;
+
                 try {
-                    const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-                    const firebaseApp = initializeApp(config);
-                    const auth = getAuth(firebaseApp);
-                    const firestoreDb = getFirestore(firebaseApp);
+                    const fb = window.FirebaseAPI;
+                    const hasManualConfig = Object.keys(myFirebaseConfig).length > 0;
+                    const envConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+                    const configToUse = hasManualConfig ? myFirebaseConfig : envConfig;
+
+                    if (Object.keys(configToUse).length === 0) {
+                        throw new Error("No config found");
+                    }
+
+                    const firebaseApp = fb.initializeApp(configToUse);
+                    const auth = fb.getAuth(firebaseApp);
+                    const firestoreDb = fb.getFirestore(firebaseApp);
                     setDb(firestoreDb);
                     
                     if (typeof __app_id !== 'undefined') {
@@ -328,26 +378,27 @@
 
                     const initAuth = async () => {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
+                            await fb.signInWithCustomToken(auth, __initial_auth_token);
                         } else {
-                            await signInAnonymously(auth);
+                            await fb.signInAnonymously(auth);
                         }
                     };
                     initAuth();
 
-                    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    const unsubscribe = fb.onAuthStateChanged(auth, (currentUser) => {
                         setUser(currentUser);
                     });
                     return () => unsubscribe();
                 } catch (error) {
-                    console.log("Modo local activo (sin conexión a nube).");
+                    console.log("Modo local activo (sin conexión a nube o faltan llaves).");
                 }
-            }, []);
+            }, [firebaseLoaded]);
 
-            // 2. Sincronización en Tiempo Real con la Nube (Escuchadores)
+            // 3. Sincronización en Tiempo Real con la Nube (Escuchadores)
             useEffect(() => {
-                if (!user || !db) return;
+                if (!user || !db || !firebaseLoaded) return;
 
+                const { collection, onSnapshot } = window.FirebaseAPI;
                 const canalesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'canales');
                 const ideasRef = collection(db, 'artifacts', appId, 'users', user.uid, 'ideas');
                 const radarRef = collection(db, 'artifacts', appId, 'users', user.uid, 'radar');
@@ -356,38 +407,44 @@
                     const data = [];
                     snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
                     setCanales(data.sort((a,b) => a.createdAt - b.createdAt));
-                    localStorage.setItem('livo_canales', JSON.stringify(data)); // Respaldo local
+                    localStorage.setItem('livo_canales', JSON.stringify(data));
                 }, (error) => console.error("Error Canales:", error));
 
                 const unsubIdeas = onSnapshot(ideasRef, (snapshot) => {
                     const data = [];
                     snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
                     setIdeasGenerales(data.sort((a,b) => b.createdAt - a.createdAt));
-                    localStorage.setItem('livo_ideas', JSON.stringify(data)); // Respaldo local
+                    localStorage.setItem('livo_ideas', JSON.stringify(data));
                 }, (error) => console.error("Error Ideas:", error));
 
                 const unsubRadar = onSnapshot(radarRef, (snapshot) => {
                     const data = [];
                     snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
                     setRegistrosPuntoB(data.sort((a,b) => b.createdAt - a.createdAt));
-                    localStorage.setItem('livo_radar', JSON.stringify(data)); // Respaldo local
+                    localStorage.setItem('livo_radar', JSON.stringify(data));
                 }, (error) => console.error("Error Radar:", error));
 
                 return () => { unsubCanales(); unsubIdeas(); unsubRadar(); };
-            }, [user, db, appId]);
+            }, [user, db, appId, firebaseLoaded]);
 
 
             // --- FUNCIONES IDEA HUB (NUBE) ---
             const agregarCanal = async (e) => {
                 e.preventDefault();
                 const nombre = e.target.nuevoCanal.value.trim().toUpperCase();
-                if (!nombre || !user || !db) return;
+                if (!nombre) return;
                 
                 const id = Date.now().toString();
-                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'canales', id), {
-                    nombre: nombre,
-                    createdAt: Date.now()
-                });
+                const newCanal = { nombre: nombre, createdAt: Date.now(), id: id };
+                
+                if (db && user && window.FirebaseAPI) {
+                    const { setDoc, doc } = window.FirebaseAPI;
+                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'canales', id), newCanal);
+                } else {
+                    const updated = [...canales, newCanal];
+                    setCanales(updated);
+                    localStorage.setItem('livo_canales', JSON.stringify(updated));
+                }
                 
                 e.target.reset();
                 setShowModalCanal(false);
@@ -395,20 +452,25 @@
 
             const eliminarCanal = async (id, nombre) => {
                 if (confirm(`¿Eliminar el canal "${nombre}"?`)) {
-                    if (!user || !db) return;
-                    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'canales', id.toString()));
+                    if (db && user && window.FirebaseAPI) {
+                        const { deleteDoc, doc } = window.FirebaseAPI;
+                        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'canales', id.toString()));
+                    } else {
+                        const updated = canales.filter(c => c.id !== id);
+                        setCanales(updated);
+                        localStorage.setItem('livo_canales', JSON.stringify(updated));
+                    }
                     if (filtroCanalDestino === nombre) setFiltroCanalDestino('Todos');
                 }
             };
 
             const captarIdea = async (e) => {
                 e.preventDefault();
-                if (!user || !db) return;
-
                 const formData = new FormData(e.target);
                 const id = Date.now().toString();
                 
-                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id), {
+                const nuevaIdea = {
+                    id: id,
                     titulo: formData.get('titulo'),
                     urlReferencia: formData.get('urlRef'),
                     urlObjetivo: formData.get('urlObj'),
@@ -418,37 +480,55 @@
                     formato: 'PD',
                     fechaEstimada: '',
                     createdAt: Date.now()
-                });
+                };
+
+                if (db && user && window.FirebaseAPI) {
+                    const { setDoc, doc } = window.FirebaseAPI;
+                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id), nuevaIdea);
+                } else {
+                    const updated = [nuevaIdea, ...ideasGenerales];
+                    setIdeasGenerales(updated);
+                    localStorage.setItem('livo_ideas', JSON.stringify(updated));
+                }
                 
                 setShowModalIdea(false);
             };
 
             const updateIdea = async (id, key, value) => {
-                if (!user || !db) return;
-                // Actualización UI Optimista para que no se sienta lento
-                setIdeasGenerales(ideasGenerales.map(i => i.id === id ? {...i, [key]: value} : i));
+                const updatedIdeas = ideasGenerales.map(i => i.id === id ? {...i, [key]: value} : i);
+                setIdeasGenerales(updatedIdeas);
                 
-                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id.toString()), {
-                    [key]: value
-                }, { merge: true });
+                if (db && user && window.FirebaseAPI) {
+                    const { setDoc, doc } = window.FirebaseAPI;
+                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id.toString()), {
+                        [key]: value
+                    }, { merge: true });
+                } else {
+                    localStorage.setItem('livo_ideas', JSON.stringify(updatedIdeas));
+                }
             };
 
             const eliminarIdea = async (id) => {
                 if (confirm('¿Eliminar esta idea definitivamente?')) {
-                    if (!user || !db) return;
-                    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id.toString()));
+                    if (db && user && window.FirebaseAPI) {
+                        const { deleteDoc, doc } = window.FirebaseAPI;
+                        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id.toString()));
+                    } else {
+                        const updated = ideasGenerales.filter(i => i.id !== id);
+                        setIdeasGenerales(updated);
+                        localStorage.setItem('livo_ideas', JSON.stringify(updated));
+                    }
                 }
             };
 
             // --- FUNCIONES PUNTO B (NUBE) ---
             const registrarPBRapido = async (e) => {
                 e.preventDefault();
-                if (!user || !db) return;
-
                 const formData = new FormData(e.target);
                 const id = Date.now().toString();
                 
-                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', id), {
+                const nuevo = {
+                    id: id,
                     idClave: formData.get('idClave') || 'S/C',
                     nicho: formData.get('nicho'),
                     subnicho: formData.get('subnicho'),
@@ -467,18 +547,26 @@
                     estado: 'Idea',
                     observaciones: '',
                     createdAt: Date.now()
-                });
+                };
+
+                if (db && user && window.FirebaseAPI) {
+                    const { setDoc, doc } = window.FirebaseAPI;
+                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', id), nuevo);
+                } else {
+                    const updated = [...registrosPuntoB, nuevo];
+                    setRegistrosPuntoB(updated);
+                    localStorage.setItem('livo_radar', JSON.stringify(updated));
+                }
                 
                 setShowModalPBRapido(false);
             };
 
             const guardarEdicionPB = async (e) => {
                 e.preventDefault();
-                if (!user || !db || !editItem) return;
+                if (!editItem) return;
 
                 const formData = new FormData(e.target);
-                
-                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', editItem.id.toString()), {
+                const updatedData = {
                     idClave: formData.get('idClave'),
                     nicho: formData.get('nicho'),
                     subnicho: formData.get('subnicho'),
@@ -495,22 +583,44 @@
                     monetizacion: formData.get('monetizacion'),
                     prioridad: formData.get('prioridad'),
                     estado: formData.get('estado')
-                }, { merge: true });
+                };
+                
+                if (db && user && window.FirebaseAPI) {
+                    const { setDoc, doc } = window.FirebaseAPI;
+                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', editItem.id.toString()), updatedData, { merge: true });
+                } else {
+                    const updated = registrosPuntoB.map(r => r.id === editItem.id ? {...r, ...updatedData} : r);
+                    setRegistrosPuntoB(updated);
+                    localStorage.setItem('livo_radar', JSON.stringify(updated));
+                }
                 
                 setShowModalPBDesarrollo(false);
             };
 
             const eliminarPuntoB = async (id) => {
-                if (!user || !db) return;
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', id.toString()));
+                if (db && user && window.FirebaseAPI) {
+                    const { deleteDoc, doc } = window.FirebaseAPI;
+                    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', id.toString()));
+                } else {
+                    const updated = registrosPuntoB.filter(x => x.id !== id);
+                    setRegistrosPuntoB(updated);
+                    localStorage.setItem('livo_radar', JSON.stringify(updated));
+                }
             };
 
             const guardarBloc = async () => {
-                if (!user || !db || !notaActiva.id) return;
+                if (!notaActiva.id) return;
                 
-                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', notaActiva.id.toString()), {
-                    observaciones: notaActiva.contenido
-                }, { merge: true });
+                if (db && user && window.FirebaseAPI) {
+                    const { setDoc, doc } = window.FirebaseAPI;
+                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', notaActiva.id.toString()), {
+                        observaciones: notaActiva.contenido
+                    }, { merge: true });
+                } else {
+                    const updated = registrosPuntoB.map(r => r.id === notaActiva.id ? {...r, observaciones: notaActiva.contenido} : r);
+                    setRegistrosPuntoB(updated);
+                    localStorage.setItem('livo_radar', JSON.stringify(updated));
+                }
                 
                 setShowModalPBNotas(false);
             };
