@@ -301,12 +301,12 @@
             // 👇 PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE (EL "CHIP DE INTERNET") 👇
             // Mete tus datos reales SOLAMENTE DENTRO DE LAS COMILLAS ("")
             const myFirebaseConfig = {
-                apiKey: "",
-                authDomain: "",
-                projectId: "",
-                storageBucket: "",
-                messagingSenderId: "",
-                appId: ""
+                apiKey: "AIzaSyBgVAaYURCEGdgMya8sizkV7ruL18zu1Og",
+                authDomain: "livohub-e1cap.firebaseapp.com",
+                projectId: "livohub-e1cap",
+                storageBucket: "livohub-e1cap.firebasestorage.app",
+                messagingSenderId: "66423421771",
+                appId: "1:66423421771:web:d69e8178fa2dd0bd6bc6ce"
             };
             // 👆 HASTA AQUÍ LA CONFIGURACIÓN 👆
 
@@ -322,6 +322,10 @@
             const [user, setUser] = useState(null);
             const [db, setDb] = useState(null);
             const [appId, setAppId] = useState('livo-hub-default');
+            
+            // NUEVO ESTADO: Diagnóstico de Conexión
+            const [connectionError, setConnectionError] = useState("");
+            const [showModalStatus, setShowModalStatus] = useState(false);
 
             const [currentView, setCurrentView] = useState('home');
 
@@ -366,13 +370,14 @@
                     const configToUse = hasManualConfig ? myFirebaseConfig : envConfig;
 
                     if (Object.keys(configToUse).length === 0 || !configToUse.apiKey) {
-                        throw new Error("No hay llaves de configuración válidas. Pegaste tus llaves?");
+                        throw new Error("No hay llaves de configuración válidas. ¿Pegaste tus llaves en la línea 242?");
                     }
 
                     const firebaseApp = fb.initializeApp(configToUse);
                     const auth = fb.getAuth(firebaseApp);
                     const firestoreDb = fb.getFirestore(firebaseApp);
                     setDb(firestoreDb);
+                    setConnectionError(""); // Limpiar errores previos
                     
                     if (typeof __app_id !== 'undefined') {
                         setAppId(__app_id);
@@ -393,6 +398,7 @@
                     return () => unsubscribe();
                 } catch (error) {
                     console.error("Motivo del foquito gris (Modo Local activado):", error);
+                    setConnectionError(error.message);
                 }
             }, [firebaseLoaded]);
 
@@ -410,21 +416,21 @@
                     snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
                     setCanales(data.sort((a,b) => a.createdAt - b.createdAt));
                     localStorage.setItem('livo_canales', JSON.stringify(data));
-                }, (error) => console.error("Error Canales:", error));
+                }, (error) => { console.error("Error Canales:", error); setConnectionError(error.message); });
 
                 const unsubIdeas = onSnapshot(ideasRef, (snapshot) => {
                     const data = [];
                     snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
                     setIdeasGenerales(data.sort((a,b) => b.createdAt - a.createdAt));
                     localStorage.setItem('livo_ideas', JSON.stringify(data));
-                }, (error) => console.error("Error Ideas:", error));
+                }, (error) => { console.error("Error Ideas:", error); setConnectionError(error.message); });
 
                 const unsubRadar = onSnapshot(radarRef, (snapshot) => {
                     const data = [];
                     snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
                     setRegistrosPuntoB(data.sort((a,b) => b.createdAt - a.createdAt));
                     localStorage.setItem('livo_radar', JSON.stringify(data));
-                }, (error) => console.error("Error Radar:", error));
+                }, (error) => { console.error("Error Radar:", error); setConnectionError(error.message); });
 
                 return () => { unsubCanales(); unsubIdeas(); unsubRadar(); };
             }, [user, db, appId, firebaseLoaded]);
@@ -627,17 +633,30 @@
                 setShowModalPBNotas(false);
             };
 
+            // --- COMPONENTE DE DIAGNÓSTICO (BOTÓN DEL FOQUITO) ---
+            const ConnectionIndicator = () => (
+                <button 
+                    onClick={() => setShowModalStatus(true)} 
+                    className="module-eyebrow flex items-center gap-2 hover:bg-gray-100 p-1 rounded transition-colors cursor-pointer border-none bg-transparent"
+                    title="Ver estado de conexión"
+                >
+                    {user ? (
+                        <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></span>
+                    ) : (
+                        <span className="w-2 h-2 rounded-full bg-gray-400 shadow-inner"></span>
+                    )}
+                    Etapa 1 — Captación
+                </button>
+            );
+
             // --- VISTA HOME ---
             if (currentView === 'home') {
                 return (
                     <div className="home-wrapper animate-fade-in">
-                        {/* Header */}
+                        {/* Header con el botón de diagnóstico */}
                         <header className="home-header">
                             <LivoLogo className="h-10 md:h-12 w-auto" />
-                            <span className="module-eyebrow flex items-center gap-2">
-                                {user ? <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></span> : <span className="w-2 h-2 rounded-full bg-gray-300"></span>}
-                                Etapa 1 — Captación
-                            </span>
+                            <ConnectionIndicator />
                         </header>
 
                         {/* Cards grid */}
@@ -682,6 +701,48 @@
                                 </div>
                             </div>
                         </div>
+
+                        {/* Modal de Diagnóstico de Conexión */}
+                        {showModalStatus && (
+                            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                                <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl relative animate-fade-in text-center">
+                                    <button onClick={() => setShowModalStatus(false)} className="absolute top-8 right-8 text-gray-400 hover:text-black transition-all">
+                                        <Icon name="x" size={24}/>
+                                    </button>
+                                    
+                                    <div className="flex justify-center mb-6">
+                                        {user ? (
+                                            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-500">
+                                                <Icon name="wifi" size={40} />
+                                            </div>
+                                        ) : (
+                                            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center text-gray-400">
+                                                <Icon name="wifi-off" size={40} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <h2 className="text-2xl font-black italic uppercase mb-4 text-black">
+                                        {user ? 'Conectado a la Nube' : 'Modo Local Activado'}
+                                    </h2>
+                                    
+                                    <p className="text-gray-600 font-medium text-sm mb-6">
+                                        {user 
+                                            ? '¡Excelente! Tus datos están protegidos y sincronizándose en tiempo real en todos tus dispositivos.' 
+                                            : connectionError.includes("llaves de configuración válidas")
+                                                ? 'A la aplicación le faltan las llaves de Firebase. Ve a la línea 242 de tu código y pega los datos que te dio Google Firebase exactamente dentro de las comillas.'
+                                                : 'No se pudo conectar a tu base de datos de Firebase. Asegúrate de haber habilitado el inicio de sesión "Anónimo" en la consola de Firebase o revisa tu conexión a internet.'}
+                                    </p>
+                                    
+                                    {!user && connectionError && (
+                                        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-left">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase mb-1 tracking-widest">Error Técnico:</p>
+                                            <p className="text-xs text-red-400 font-bold break-words">{connectionError}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             }
