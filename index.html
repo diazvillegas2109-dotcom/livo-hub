@@ -411,9 +411,10 @@
                 if (!user || !db || !firebaseLoaded) return;
 
                 const { collection, onSnapshot } = window.FirebaseAPI;
-                const canalesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'canales');
-                const ideasRef = collection(db, 'artifacts', appId, 'users', user.uid, 'ideas');
-                const radarRef = collection(db, 'artifacts', appId, 'users', user.uid, 'radar');
+                // IMPLEMENTACIÓN: Cambiamos la ruta de "Carpeta Privada" a "Carpeta de Trabajo Pública Compartida"
+                const canalesRef = collection(db, 'artifacts', appId, 'public', 'data', 'canales');
+                const ideasRef = collection(db, 'artifacts', appId, 'public', 'data', 'ideas');
+                const radarRef = collection(db, 'artifacts', appId, 'public', 'data', 'radar');
 
                 const unsubCanales = onSnapshot(canalesRef, (snapshot) => {
                     const data = [];
@@ -451,7 +452,7 @@
                 
                 if (db && user && window.FirebaseAPI) {
                     const { setDoc, doc } = window.FirebaseAPI;
-                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'canales', id), newCanal);
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'canales', id), newCanal);
                 } else {
                     const updated = [...canales, newCanal];
                     setCanales(updated);
@@ -466,7 +467,7 @@
                 if (confirm(`¿Eliminar el canal "${nombre}"?`)) {
                     if (db && user && window.FirebaseAPI) {
                         const { deleteDoc, doc } = window.FirebaseAPI;
-                        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'canales', id.toString()));
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'canales', id.toString()));
                     } else {
                         const updated = canales.filter(c => c.id !== id);
                         setCanales(updated);
@@ -496,7 +497,7 @@
 
                 if (db && user && window.FirebaseAPI) {
                     const { setDoc, doc } = window.FirebaseAPI;
-                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id), nuevaIdea);
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'ideas', id), nuevaIdea);
                 } else {
                     const updated = [nuevaIdea, ...ideasGenerales];
                     setIdeasGenerales(updated);
@@ -512,7 +513,7 @@
                 
                 if (db && user && window.FirebaseAPI) {
                     const { setDoc, doc } = window.FirebaseAPI;
-                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id.toString()), {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'ideas', id.toString()), {
                         [key]: value
                     }, { merge: true });
                 } else {
@@ -524,7 +525,7 @@
                 if (confirm('¿Eliminar esta idea definitivamente?')) {
                     if (db && user && window.FirebaseAPI) {
                         const { deleteDoc, doc } = window.FirebaseAPI;
-                        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'ideas', id.toString()));
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'ideas', id.toString()));
                     } else {
                         const updated = ideasGenerales.filter(i => i.id !== id);
                         setIdeasGenerales(updated);
@@ -563,7 +564,7 @@
 
                 if (db && user && window.FirebaseAPI) {
                     const { setDoc, doc } = window.FirebaseAPI;
-                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', id), nuevo);
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'radar', id), nuevo);
                 } else {
                     const updated = [...registrosPuntoB, nuevo];
                     setRegistrosPuntoB(updated);
@@ -599,7 +600,7 @@
                 
                 if (db && user && window.FirebaseAPI) {
                     const { setDoc, doc } = window.FirebaseAPI;
-                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', editItem.id.toString()), updatedData, { merge: true });
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'radar', editItem.id.toString()), updatedData, { merge: true });
                 } else {
                     const updated = registrosPuntoB.map(r => r.id === editItem.id ? {...r, ...updatedData} : r);
                     setRegistrosPuntoB(updated);
@@ -612,7 +613,7 @@
             const eliminarPuntoB = async (id) => {
                 if (db && user && window.FirebaseAPI) {
                     const { deleteDoc, doc } = window.FirebaseAPI;
-                    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', id.toString()));
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'radar', id.toString()));
                 } else {
                     const updated = registrosPuntoB.filter(x => x.id !== id);
                     setRegistrosPuntoB(updated);
@@ -625,7 +626,7 @@
                 
                 if (db && user && window.FirebaseAPI) {
                     const { setDoc, doc } = window.FirebaseAPI;
-                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'radar', notaActiva.id.toString()), {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'radar', notaActiva.id.toString()), {
                         observaciones: notaActiva.contenido
                     }, { merge: true });
                 } else {
