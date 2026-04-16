@@ -298,8 +298,7 @@
         );
 
         const App = () => {
-            // 👇 PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE (EL "CHIP DE INTERNET") 👇
-            // Mete tus datos reales SOLAMENTE DENTRO DE LAS COMILLAS ("")
+            // 👇 CONFIGURACIÓN DE FIREBASE ACTUALIZADA CON TUS LLAVES 👇
             const myFirebaseConfig = {
                 apiKey: "AIzaSyBgVAaYURCEGdgMya8sizkV7ruL18zu1Og",
                 authDomain: "livohub-e1cap.firebaseapp.com",
@@ -357,14 +356,13 @@
                 return () => clearInterval(checkTimer);
             }, []);
 
-            // 2. Inicialización de Autenticación Segura
+            // 2. Inicialización de Autenticación Segura (CON DIAGNÓSTICO MEJORADO)
             useEffect(() => {
                 if (!firebaseLoaded) return;
 
                 try {
                     const fb = window.FirebaseAPI;
                     
-                    // Verificamos si myFirebaseConfig tiene datos reales o está vacío
                     const hasManualConfig = myFirebaseConfig.apiKey !== "";
                     const envConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
                     const configToUse = hasManualConfig ? myFirebaseConfig : envConfig;
@@ -383,11 +381,17 @@
                         setAppId(__app_id);
                     }
 
+                    // AHORA ATRAPAMOS EL ERROR DE AUTENTICACIÓN CORRECTAMENTE
                     const initAuth = async () => {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await fb.signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await fb.signInAnonymously(auth);
+                        try {
+                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                await fb.signInWithCustomToken(auth, __initial_auth_token);
+                            } else {
+                                await fb.signInAnonymously(auth);
+                            }
+                        } catch (err) {
+                            console.error("Error al iniciar sesión (Posible bloqueo de Dominio en Firebase):", err);
+                            setConnectionError(`Firebase bloqueó el acceso: ${err.message}. Recuerda autorizar tu dominio de GitHub en la configuración de Firebase Authentication.`);
                         }
                     };
                     initAuth();
